@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Murmúrio</title>
 <meta name="description" content="Linha pública da Europa.">
+<meta name="robots" content="noindex, nofollow">
 <style>html,body{margin:0}[hidden]{display:none!important}</style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Courier+Prime:wght@400;700&family=IM+Fell+English:ital@0;1&family=Spectral:ital,wght@0,400;0,600;1,400&family=UnifrakturCook:wght@700&display=swap">
 <style>
@@ -736,10 +737,12 @@ window.MURMURIO_FIREBASE = {
 </script>
 <script type="module">
 // Liga o Murmúrio ao Firebase: login anônimo para os players, Google para o mestre (?mestre no endereço).
+// Quem é o mestre quem decide é o banco: só a conta liberada nas regras consegue ler o progresso de todos,
+// e só ela recebe o mapa e o botão de apagar. Qualquer outra conta Google continua sendo player.
 const cfg = window.MURMURIO_FIREBASE || {};
 const BASE = "https://www.gstatic.com/firebasejs/10.12.2/";
 
-function mestreUI(authM, auth, user) {
+function mestreUI(authM, auth, user, mestre) {
   if (!/(^|&)mestre(=|&|$)/.test(location.search.slice(1))) return;
   const box = document.createElement("div");
   box.className = "mestre-bar";
@@ -747,7 +750,7 @@ function mestreUI(authM, auth, user) {
   const btn = document.createElement("button");
   btn.type = "button";
   if (user && !user.isAnonymous) {
-    label.textContent = "Mestre conectado";
+    label.textContent = mestre ? "Mestre conectado" : "Esta conta não é a do mestre";
     btn.textContent = "Sair";
     btn.onclick = () => authM.signOut(auth).then(() => location.reload());
   } else {
@@ -779,9 +782,12 @@ async function ligar() {
       authM.signInAnonymously(auth).catch(() => { stop(); res(null); });
     });
   });
-  mestreUI(authM, auth, user);
+  let mestre = false;
+  if (user && !user.isAnonymous) {
+    try { await fsM.getDocs(fsM.collection(fs, "progress")); mestre = true; } catch (e) { mestre = false; }
+  }
+  mestreUI(authM, auth, user, mestre);
   if (!user) return null;
-  const mestre = !user.isAnonymous;
   const names = {};
   const wrapDoc = (snap) => ({ id: snap.id, exists: snap.exists(), data: () => snap.data() });
   const wrapQuery = (qs) => ({ docs: qs.docs.map(wrapDoc), size: qs.size, empty: qs.empty });
