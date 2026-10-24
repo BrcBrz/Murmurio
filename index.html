@@ -736,14 +736,23 @@ window.MURMURIO_FIREBASE = {
 })();
 </script>
 <script type="module">
-// Liga o Murmúrio ao Firebase: login anônimo para os players, Google para o mestre (?mestre no endereço).
+// Liga o Murmúrio ao Firebase: login anônimo para os players e Google para o mestre.
+// O modo do mestre só existe no endereço com a chave secreta, e o código guarda só a impressão dela.
 // Quem é o mestre quem decide é o banco: só a conta liberada nas regras consegue ler o progresso de todos,
 // e só ela recebe o mapa e o botão de apagar. Qualquer outra conta Google continua sendo player.
 const cfg = window.MURMURIO_FIREBASE || {};
 const BASE = "https://www.gstatic.com/firebasejs/10.12.2/";
+const CHAVE = "be21087e7b21ecb8343f1259790e32c3eaf30b0f04330a7f5de166af0828b200";
+
+async function comChave() {
+  const k = new URLSearchParams(location.search).get("k");
+  if (!k || !window.crypto || !crypto.subtle) return false;
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(k));
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex === CHAVE;
+}
 
 function mestreUI(authM, auth, user, mestre) {
-  if (!/(^|&)mestre(=|&|$)/.test(location.search.slice(1))) return;
   const box = document.createElement("div");
   box.className = "mestre-bar";
   const label = document.createElement("span");
@@ -782,11 +791,12 @@ async function ligar() {
       authM.signInAnonymously(auth).catch(() => { stop(); res(null); });
     });
   });
+  const chave = await comChave();
   let mestre = false;
-  if (user && !user.isAnonymous) {
+  if (chave && user && !user.isAnonymous) {
     try { await fsM.getDocs(fsM.collection(fs, "progress")); mestre = true; } catch (e) { mestre = false; }
   }
-  mestreUI(authM, auth, user, mestre);
+  if (chave) mestreUI(authM, auth, user, mestre);
   if (!user) return null;
   const names = {};
   const wrapDoc = (snap) => ({ id: snap.id, exists: snap.exists(), data: () => snap.data() });
